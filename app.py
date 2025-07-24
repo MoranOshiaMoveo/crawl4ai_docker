@@ -5,8 +5,10 @@ import asyncio
 from base64 import b64decode
 from datetime import timedelta
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
-from google.cloud import storage
 import uvicorn
+import google.auth
+import google.auth.transport.requests
+from google.cloud import storage
 
 app = FastAPI(
     title="Crawl4AI Screenshot Service",
@@ -30,6 +32,10 @@ async def upload_to_gcs(bucket_name: str, destination_blob_name: str, data: str)
     """Uploads data to GCS as a file (blob) and returns signed URL."""
     try:
         client = storage.Client() 
+        credentials, project_id = google.auth.default()
+        request = google.auth.transport.requests.Request()
+        credentials.refresh(request)
+
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(destination_blob_name)
         blob.upload_from_string(data)

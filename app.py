@@ -29,9 +29,8 @@ class ScreenshotResponse(BaseModel):
 async def upload_to_gcs(bucket_name: str, destination_blob_name: str, data: str):
     """Uploads data to GCS as a file (blob) and returns signed URL."""
     try:
-        # Use the service account file explicitly
-        storage_client = storage.Client.from_service_account_json("service-account.json")
-        bucket = storage_client.bucket(bucket_name)
+        client = storage.Client() 
+        bucket = client.bucket(bucket_name)
         blob = bucket.blob(destination_blob_name)
         blob.upload_from_string(data)
         
@@ -80,7 +79,6 @@ async def take_screenshot(request: ScreenshotRequest):
             if result.success and result.screenshot:
                 print(f"[OK] Screenshot captured for {request.url}, size: {len(result.screenshot)} bytes")
                 
-                # Generate a unique filename based on URL and timestamp
                 import time
                 url_clean = str(request.url).replace("://", "_").replace("/", "_").replace(".", "_")
                 timestamp = int(time.time())
@@ -88,7 +86,6 @@ async def take_screenshot(request: ScreenshotRequest):
                 
                 bucket_name = "crawl4ai-bucket"
                 
-                # Upload to GCS and get signed URL
                 signed_url = await upload_to_gcs(bucket_name, destination_blob_name, result.screenshot)
                 
                 return ScreenshotResponse(

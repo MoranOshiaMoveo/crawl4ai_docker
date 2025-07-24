@@ -109,7 +109,19 @@ RUN groupadd -r appuser && useradd --no-log-init -r -g appuser appuser
 # Create and set permissions for appuser home directory
 RUN mkdir -p /home/appuser && chown -R appuser:appuser /home/appuser
 
-
+# Create installation script
+RUN echo '#!/bin/bash\n\
+if [ "$USE_LOCAL" = "true" ]; then\n\
+    echo "📦 Installing from local source..."\n\
+    pip install --no-cache-dir /tmp/project/\n\
+else\n\
+    echo "🌐 Installing from GitHub..."\n\
+    for i in {1..3}; do \n\
+        git clone --branch ${GITHUB_BRANCH} ${GITHUB_REPO} /tmp/crawl4ai && break || \n\
+        { echo "Attempt $i/3 failed! Taking a short break... ☕"; sleep 5; }; \n\
+    done\n\
+    pip install --no-cache-dir /tmp/crawl4ai\n\
+fi' > /tmp/install.sh && chmod +x /tmp/install.sh
 
 # Set up Chrome for headless mode
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
@@ -166,17 +178,18 @@ RUN pip install --no-cache-dir --upgrade pip && \
     python -c "import crawl4ai; print('✅ crawl4ai is ready to rock!')" && \
     python -c "from playwright.sync_api import sync_playwright; print('✅ Playwright is feeling dramatic!')"
 
-# Switch back to root to install browsers for the user
-USER root
+# Setup crawl4ai
+RUN crawl4ai-setup
 
-# Install Playwright browsers for the appuser
-RUN su - appuser -c "playwright install chromium"
+RUN playwright install --with-deps
 
-# Ensure proper ownership
-RUN chown -R appuser:appuser /home/appuser/.cache
+RUN mkdir -p /home/appuser/.cache/ms-playwright \
+    && cp -r /root/.cache/ms-playwright/chromium-* /home/appuser/.cache/ms-playwright/ \
+    && chown -R appuser:appuser /home/appuser/.cache/ms-playwright
 
-# Switch back to appuser
-USER appuser
+
+# Run crawl4ai doctor to verify setup
+RUN crawl4ai-doctor
 
 # Expose the port
 EXPOSE 8000

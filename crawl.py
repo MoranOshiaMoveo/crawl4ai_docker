@@ -1,29 +1,25 @@
 import os, asyncio
-from base64 import b64decode
 from datetime import timedelta
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from google.cloud import storage
 
-async def upload_to_gcs(bucket_name, destination_blob_name, data):
-    """Uploads data to GCS as a file (blob)."""
-    # Use the service account file explicitly
-    storage_client = storage.Client.from_service_account_json("service-account.json")
-    bucket = storage_client.bucket(bucket_name)
+def upload_to_gcs(bucket_name, destination_blob_name, data):
+    """Uploads data to GCS as a file (blob) using Cloud Run’s default credentials."""
+    client = storage.Client() 
+    bucket = client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
     blob.upload_from_string(data)
-    
-    # Generate a signed URL for temporary access (valid for 1 hour)
-    signed_url = blob.generate_signed_url(
+
+    url = blob.generate_signed_url(
         version="v4",
         expiration=timedelta(hours=1),
         method="GET"
     )
-    
+
     print(f"[OK] Uploaded to gs://{bucket_name}/{destination_blob_name}")
-    print(f"[URL] File available at: {signed_url}")
-    print(f"[INFO] Signed URL valid for 1 hour")
-    
-    return signed_url
+    print(f"[URL] File available at: {url} (valid 1 hour)")
+    return url
+
 
 
 

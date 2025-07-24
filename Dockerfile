@@ -1,10 +1,19 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
+ARG APP_HOME=/app
+ARG GITHUB_REPO=https://github.com/unclecode/crawl4ai.git
+ARG GITHUB_BRANCH=main
+ARG USE_LOCAL=true
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \ 
+    PYTHONHASHSEED=random \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=100 \
 
 # Install system dependencies for Chrome and crawl4ai
 RUN apt-get update && apt-get install -y \
@@ -13,11 +22,99 @@ RUN apt-get update && apt-get install -y \
     unzip \
     curl \
     xvfb \
+  
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    wget \
+    gnupg \
+    xvfb \
+    unzip \
+    git \
+    cmake \
+    pkg-config \
+    python3-dev \
+    libjpeg-dev \
+    redis-server \
+    supervisor \
+    && apt-get clean \ 
     && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxcb1 \
+    libxkbcommon0 \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libatspi2.0-0 \
+    && apt-get clean \ 
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get dist-upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN if [ "$ENABLE_GPU" = "true" ] && [ "$TARGETARCH" = "amd64" ] ; then \
+    apt-get update && apt-get install -y --no-install-recommends \
+    nvidia-cuda-toolkit \
+    && apt-get clean \ 
+    && rm -rf /var/lib/apt/lists/* ; \
+else \
+    echo "Skipping NVIDIA CUDA Toolkit installation (unsupported platform or GPU disabled)"; \
+fi
+
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+    echo "🦾 Installing ARM-specific optimizations"; \
+    apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas-dev \
+    && apt-get clean \ 
+    && rm -rf /var/lib/apt/lists/*; \
+elif [ "$TARGETARCH" = "amd64" ]; then \
+    echo "🖥️ Installing AMD64-specific optimizations"; \
+    apt-get update && apt-get install -y --no-install-recommends \
+    libomp-dev \
+    && apt-get clean \ 
+    && rm -rf /var/lib/apt/lists/*; \
+else \
+    echo "Skipping platform-specific optimizations (unsupported platform)"; \
+fi
+
+# Create a non-root user and group
+RUN groupadd -r appuser && useradd --no-log-init -r -g appuser appuser
+
+# Create and set permissions for appuser home directory
+RUN mkdir -p /home/appuser && chown -R appuser:appuser /home/appuser
+RUN echo '#!/bin/bash\n\
+if [ "$USE_LOCAL" = "true" ]; then\n\
+    echo "📦 Installing from local source..."\n\
+    pip install --no-cache-dir /tmp/project/\n\
+else\n\
+    echo "🌐 Installing from GitHub..."\n\
+    for i in {1..3}; do \n\
+        git clone --branch ${GITHUB_BRANCH} ${GITHUB_REPO} /tmp/crawl4ai && break || \n\
+        { echo "Attempt $i/3 failed! Taking a short break... ☕"; sleep 5; }; \n\
+    done\n\
+    pip install --no-cache-dir /tmp/crawl4ai\n\
+fi' > /tmp/install.sh && chmod +x /tmp/install.sh
 
 # Set up Chrome for headless mode
 ENV CHROME_BIN=/usr/bin/google-chrome \
@@ -46,6 +143,36 @@ COPY crawl.py .
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
 USER app
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN if [ "$INSTALL_TYPE" = "all" ] ; then \
+        pip install --no-cache-dir \
+            torch \
+            torchvision \
+            torchaudio \
+            scikit-learn \
+            nltk \
+            transformers \
+            tokenizers && \
+        python -m nltk.downloader punkt stopwords ; \
+    fi
+
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    /tmp/install.sh && \
+    python -c "import crawl4ai; print('✅ crawl4ai is ready to rock!')" && \
+    python -c "from playwright.sync_api import sync_playwright; print('✅ Playwright is feeling dramatic!')"
+
+RUN crawl4ai-setup
+
+RUN playwright install --with-deps
+
+RUN mkdir -p /home/appuser/.cache/ms-playwright \
+    && cp -r /root/.cache/ms-playwright/chromium-* /home/appuser/.cache/ms-playwright/ \
+    && chown -R appuser:appuser /home/appuser/.cache/ms-playwright
+
+RUN crawl4ai-doctor
 
 # Expose the port
 EXPOSE 8000

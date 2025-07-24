@@ -1,5 +1,3 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
 
 ARG APP_HOME=/app
 ARG GITHUB_REPO=https://github.com/unclecode/crawl4ai.git
@@ -178,18 +176,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
     python -c "import crawl4ai; print('✅ crawl4ai is ready to rock!')" && \
     python -c "from playwright.sync_api import sync_playwright; print('✅ Playwright is feeling dramatic!')"
 
-# Setup crawl4ai
-RUN crawl4ai-setup
+# Switch back to root to install browsers for the user
+USER root
 
-RUN playwright install --with-deps
+# Install Playwright browsers for the appuser
+RUN su - appuser -c "playwright install chromium"
 
-RUN mkdir -p /home/appuser/.cache/ms-playwright \
-    && cp -r /root/.cache/ms-playwright/chromium-* /home/appuser/.cache/ms-playwright/ \
-    && chown -R appuser:appuser /home/appuser/.cache/ms-playwright
+# Ensure proper ownership
+RUN chown -R appuser:appuser /home/appuser/.cache
 
-
-# Run crawl4ai doctor to verify setup
-RUN crawl4ai-doctor
+# Switch back to appuser
+USER appuser
 
 # Expose the port
 EXPOSE 8000

@@ -37,8 +37,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY app.py .
 COPY crawl.py .
 
-# Copy service account file (make sure it exists)
-COPY service-account.json .
 
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash app \

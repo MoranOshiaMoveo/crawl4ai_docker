@@ -6,6 +6,9 @@ ARG ENABLE_GPU=false
 ARG TARGETARCH=amd64
 ARG INSTALL_TYPE=basic
 
+# Use Python 3.11 slim base image
+FROM python:3.11-slim
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

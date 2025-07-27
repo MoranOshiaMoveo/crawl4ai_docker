@@ -31,55 +31,28 @@ class ScreenshotResponse(BaseModel):
 import google.auth
 from google.auth.transport.requests import Request
 from google.cloud import storage
-from google.cloud.iam_credentials_v1 import IAMCredentialsClient
 from datetime import timedelta
-from fastapi import HTTPException  # or your framework’s equivalent
 
-async def upload_to_gcs(bucket_name: str, destination_blob_name: str, data: str) -> str:
-    """Uploads data to GCS as a file (blob) and returns a V4 signed URL (1h)."""
-    try:
-        # 1) Grab default credentials (Cloud Run service account) + project
-        credentials, project_id = google.auth.default()
-        # refresh to populate service_account_email
-        credentials.refresh(Request())
-
-        # 2) Prepare an IAM Credentials client to sign blobs
-        iam_client = IAMCredentialsClient()
-        sa_email = credentials.service_account_email
-
-        def iam_signer(bytes_to_sign: bytes) -> bytes:
-            resp = iam_client.sign_blob(
-                request={
-                    "name": f"projects/-/serviceAccounts/{sa_email}",
-                    "payload": bytes_to_sign,
-                }
-            )
-            return resp.signed_blob
-
-        # 3) Use the same credentials for Storage client
-        storage_client = storage.Client(credentials=credentials, project=project_id)
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(destination_blob_name)
-
-        # 4) Upload the data
-        blob.upload_from_string(data)
-
-        # 5) Generate the signed URL using our IAM-based signer
-        signed_url = blob.generate_signed_url(
-            version="v4",
-            expiration=timedelta(hours=1),
-            method="GET",
-            service_account_email=sa_email,
-            signer=iam_signer,
-        )
-
-        print(f"[OK] Uploaded to gs://{bucket_name}/{destination_blob_name}")
-        return signed_url
-
-    except Exception as e:
-        print(f"[ERROR] Failed to upload to GCS: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to upload to GCS: {e}")
-
+async def upload_to_gcs(bucket_name, destination_blob_name, data):
+    """Uploads data to GCS as a file (blob)."""
+    # Use the service account file explicitly
+    storage_client = storage.Client.from_service_account_json("service-account.json")
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+    blob.upload_from_string(data)
+    
+    # Generate a signed URL for temporary access (valid for 1 hour)
+    signed_url = blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(hours=1),
+        method="GET"
+    )
+    
+    print(f"[OK] Uploaded to gs://{bucket_name}/{destination_blob_name}")
+    print(f"[URL] File available at: {signed_url}")
+    print(f"[INFO] Signed URL valid for 1 hour")
+    
+    return signed_url
 @app.get("/")
 async def root():
     return {"message": "Crawl4AI Screenshot Service is running!"}

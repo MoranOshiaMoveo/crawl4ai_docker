@@ -91,6 +91,9 @@ async def take_screenshot(request: ScreenshotRequest):
     Returns a signed URL for accessing the screenshot.
     """
     try:
+        print("🔑 Testing service account credentials...")
+        create_json_file()
+
         run_config = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
             screenshot=True,
@@ -161,24 +164,10 @@ def create_json_file():
         json.dump(bucket_info, f, indent=2)
     
     print("✅ Service account JSON created with properly formatted private key")
-    
-    # Debug: Show the structure without exposing sensitive data
-    debug_info = {k: f"<{len(str(v))} chars>" if k == "private_key" else v for k, v in bucket_info.items()}
-    print(f"📋 Service Account Structure: {debug_info}")
-    
-    # Verify the JSON can be read back
-    try:
-        with open("service-account.json", "r") as f:
-            test_data = json.load(f)
-        print("✅ Service account JSON is valid and readable")
-        return True
-    except Exception as e:
-        print(f"❌ Error reading service account JSON: {e}")
-        return False
+  
         
 if __name__ == "__main__":
     print("🎉 Starting FastAPI server...")
     print("🔑 Testing service account credentials...")
-    create_json_file()
     print("🚀 Starting FastAPI server...")
     uvicorn.run(app, host="0.0.0.0", port=8000) 

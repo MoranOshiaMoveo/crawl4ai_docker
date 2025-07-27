@@ -1,3 +1,7 @@
+# Use Python 3.11 slim base image
+FROM python:3.11-slim
+
+# Re-declare ARG variables to make them available after FROM
 ARG APP_HOME=/app
 ARG GITHUB_REPO=https://github.com/unclecode/crawl4ai.git
 ARG GITHUB_BRANCH=main
@@ -5,9 +9,6 @@ ARG USE_LOCAL=false
 ARG ENABLE_GPU=false
 ARG TARGETARCH=amd64
 ARG INSTALL_TYPE=basic
-
-# Use Python 3.11 slim base image
-FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \

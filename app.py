@@ -177,5 +177,8 @@ def create_json_file():
         return False
         
 if __name__ == "__main__":
+    print("🎉 Starting FastAPI server...")
+    print("🔑 Testing service account credentials...")
     create_json_file()
+    print("🚀 Starting FastAPI server...")
     uvicorn.run(app, host="0.0.0.0", port=8000) 

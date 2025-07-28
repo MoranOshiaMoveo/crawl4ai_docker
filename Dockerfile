@@ -154,8 +154,7 @@ RUN playwright install chromium \
     && playwright install-deps chromium
 
 # Copy application code
-COPY app.py .
-COPY crawl.py .
+COPY . .
 
 # Switch to non-root user
 USER appuser

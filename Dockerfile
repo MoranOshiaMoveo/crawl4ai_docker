@@ -156,6 +156,9 @@ RUN playwright install chromium \
 # Copy application code
 COPY . .
 
+# Set ownership and permissions for appuser
+RUN chown -R appuser:appuser /app
+
 # Switch to non-root user
 USER appuser
 
